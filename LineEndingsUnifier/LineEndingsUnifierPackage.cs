@@ -308,7 +308,11 @@ namespace JakubBielawa.LineEndingsUnifier
 
             if (this.OptionsPage.AddNewlineOnLastLine)
             {
+                // no endings then add two
                 if (!changedText.EndsWith(Utilities.GetNewlineString(lineEndings)))
+                {
+                    changedText += Utilities.GetTwoNewlineString(lineEndings);
+                }else if (!changedText.EndsWith(Utilities.GetTwoNewlineString(lineEndings))) //else add one
                 {
                     changedText += Utilities.GetNewlineString(lineEndings);
                 }

@@ -22,5 +22,18 @@ namespace JakubBielawa.LineEndingsUnifier
                     return "\n";
             }
         }
+        public static string GetTwoNewlineString(LineEndingsChanger.LineEndings lineEnding)
+        {
+            switch (lineEnding)
+            {
+                case LineEndingsChanger.LineEndings.Macintosh:
+                    return "\r\r";
+                case LineEndingsChanger.LineEndings.Windows:
+                    return "\r\n\r\n";
+                case LineEndingsChanger.LineEndings.Linux:
+                default:
+                    return "\n\n";
+            }
+        }
     }
 }
