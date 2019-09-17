@@ -1,4 +1,5 @@
 ﻿using EnvDTE;
+using EnvDTE80;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -6,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Diagnostics;
+using System.Text;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -63,6 +65,10 @@ namespace JakubBielawa.LineEndingsUnifier
             this.runningDocumentTable = new RunningDocumentTable(serviceProvider);
             this.documentSaveListener = new DocumentSaveListener(runningDocumentTable);
             this.documentSaveListener.BeforeSave += DocumentSaveListener_BeforeSave;
+
+            this.documentEvents = (GetService(typeof(DTE)) as DTE2).Events.DocumentEvents;
+            this.documentEvents.DocumentSaved += DocumentEvents_DocumentSaved;
+
             this.changesManager = new ChangesManager();
         }
 
@@ -96,7 +102,57 @@ namespace JakubBielawa.LineEndingsUnifier
 
             return VSConstants.S_OK;
         }
+        private void DocumentEvents_DocumentSaved(Document document)
+        {
+            if (document.Kind != "{8E7B96A8-E33D-11D0-A6D5-00C04FB67F6A}")
+            {
+                // then it's not a text file
+                return;
+            }
 
+            var path = document.FullName;
+
+            try
+            {
+                var stream = new FileStream(path, FileMode.Open);
+                var reader = new StreamReader(stream, Encoding.Default, true);
+                reader.Read();
+
+                var preambleBytes = reader.CurrentEncoding.GetPreamble();
+                if (preambleBytes.Length == 0 &&
+                    reader.CurrentEncoding.EncodingName == Encoding.UTF8.EncodingName)
+                {
+                    stream.Close();
+                    return;
+                }
+
+                string text;
+
+                try
+                {
+                    stream.Position = 0;
+                    reader = new StreamReader(stream, new UTF8Encoding(false, true));
+                    text = reader.ReadToEnd();
+                    stream.Close();
+                    File.WriteAllText(path, text, new UTF8Encoding(false));
+                    //Output.Info($"Already convert file '{path}' encoding to utf-8 no BOM.");
+                }
+                catch (DecoderFallbackException)
+                {
+                    stream.Position = 0;
+                    reader = new StreamReader(stream, Encoding.Default);
+                    text = reader.ReadToEnd();
+                    stream.Close();
+                    File.WriteAllText(path, text, new UTF8Encoding(false));
+                    //Output.Info($"Already convert file '{path}' encoding to utf-8 no BOM.");
+                }
+
+            }
+            catch (Exception e)
+            {
+                //Output.Error($"Exception occured when converting file '{path}' encoding to utf-8 no BOM:\n{e.ToString()}");
+            }
+        }
         private void UnifyLineEndingsInFileEventHandler(object sender, EventArgs e)
         {
             var selectedItem = this.IDE.SelectedItems.Item(1);
@@ -308,11 +364,7 @@ namespace JakubBielawa.LineEndingsUnifier
 
             if (this.OptionsPage.AddNewlineOnLastLine)
             {
-                // no endings then add two
                 if (!changedText.EndsWith(Utilities.GetNewlineString(lineEndings)))
-                {
-                    changedText += Utilities.GetTwoNewlineString(lineEndings);
-                }else if (!changedText.EndsWith(Utilities.GetTwoNewlineString(lineEndings))) //else add one
                 {
                     changedText += Utilities.GetNewlineString(lineEndings);
                 }
@@ -355,6 +407,8 @@ namespace JakubBielawa.LineEndingsUnifier
         private RunningDocumentTable runningDocumentTable;
 
         private DocumentSaveListener documentSaveListener;
+
+        private DocumentEvents documentEvents;
 
         private ChangesManager changesManager;
 
